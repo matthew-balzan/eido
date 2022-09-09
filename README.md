@@ -1,0 +1,2 @@
+# eido
+Discord go bot
