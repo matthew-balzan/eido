@@ -4,12 +4,20 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	"github.com/matthew-balzan/eido/internal/commands"
+	"github.com/matthew-balzan/eido/internal/models"
+	"github.com/matthew-balzan/eido/internal/vars"
 )
 
 func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Ignore messages by the bot
 	if i.Member.User.ID == s.State.User.ID {
 		return
+	}
+
+	instance := vars.Instances[i.GuildID]
+	if instance == nil {
+		vars.Instances[i.GuildID] = models.CreateServerInstance(i.GuildID)
+		instance = vars.Instances[i.GuildID]
 	}
 
 	// Check the interaction type
@@ -21,6 +29,9 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			commands.PingCommand(s, i)
 		case "bet":
 			commands.BetCommand(s, i)
+		case "play":
+			commands.PlayCommand(s, i, instance)
 		}
+
 	}
 }

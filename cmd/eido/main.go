@@ -7,6 +7,7 @@ import (
 
 	"github.com/matthew-balzan/eido/internal/bot"
 	"github.com/matthew-balzan/eido/internal/utils"
+	"github.com/matthew-balzan/eido/internal/vars"
 )
 
 func main() {
@@ -19,7 +20,7 @@ func main() {
 	}
 
 	// Create the session
-	dg, err := discordgo.New(utils.Config.DiscordToken)
+	dg, err := discordgo.New(vars.Config.DiscordToken)
 	if err != nil {
 		log.Fatalf("Error creating Discord session: %s", err)
 		return

@@ -52,6 +52,18 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 				},
 			},
 		},
+		{
+			Name:        "play",
+			Description: "Play a Youtube song, given a video url",
+			Options: []*discordgo.ApplicationCommandOption{
+				{
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        "url",
+					Description: "url of the song",
+					Required:    true,
+				},
+			},
+		},
 	}
 
 	app, err := session.Application("@me")
