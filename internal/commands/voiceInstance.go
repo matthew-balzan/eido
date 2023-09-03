@@ -1,12 +1,15 @@
-package models
+package commands
 
 import (
 	"fmt"
 	"io"
+	"log"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/jonas747/dca"
 	"github.com/kkdai/youtube/v2"
+	"github.com/matthew-balzan/eido/internal/models"
 )
 
 type ServerInstance struct {
@@ -21,6 +24,7 @@ type VoiceInstance struct {
 	Stream     *dca.StreamingSession
 	IsPlaying  bool
 	Queue      []Song
+	Timer      *time.Timer
 }
 
 type Song struct {
@@ -43,6 +47,7 @@ func CreateVoiceInstance() (i *VoiceInstance) {
 	i.Connection = nil
 	i.Encoder = nil
 	i.IsPlaying = false
+	i.Timer = nil
 	i.Queue = []Song{}
 	return i
 }
@@ -69,6 +74,8 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 		return
 	}
 
+	v.Encoder = encodingSession
+
 	done := make(chan error)
 
 	v.Connection.Speaking(true)
@@ -80,9 +87,34 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	v.Connection.Speaking(false)
 
 	defer encodingSession.Cleanup()
+	v.Encoder = nil
 
 	if errDone != nil && errDone != io.EOF {
 		fmt.Println("ERR: internal/models/instance.go: Error while playing - ", err)
 		return
 	}
+}
+
+func (v *VoiceInstance) StopTimer() {
+	if v.Timer != nil {
+		res := v.Timer.Stop()
+		fmt.Println(res)
+	}
+}
+
+func (v *VoiceInstance) StartTimer(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	v.Timer = time.NewTimer(time.Duration(models.TimeoutSecondsDisconnect) * time.Second)
+
+	go func() {
+		<-v.Timer.C
+		log.Println("Bot disconnected for timeout")
+		if v.Connection != nil {
+			v.Connection.Disconnect()
+		}
+
+		v.Connection = nil
+		v.ChannelId = ""
+
+		SendSimpleMessage(s, i, "Disconnected for inactivity")
+	}()
 }

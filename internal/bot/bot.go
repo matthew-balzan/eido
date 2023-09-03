@@ -28,30 +28,30 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 			Name:        "ping",
 			Description: "pong",
 		},
-		{
-			Name:        "bet",
-			Description: "Create a bet",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "title",
-					Description: "Title of the bet",
-					Required:    true,
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "choice1",
-					Description: "Choice 1",
-					Required:    true,
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "choice2",
-					Description: "Choice 2",
-					Required:    true,
-				},
-			},
-		},
+		// {
+		// 	Name:        "bet",
+		// 	Description: "Create a bet",
+		// 	Options: []*discordgo.ApplicationCommandOption{
+		// 		{
+		// 			Type:        discordgo.ApplicationCommandOptionString,
+		// 			Name:        "title",
+		// 			Description: "Title of the bet",
+		// 			Required:    true,
+		// 		},
+		// 		{
+		// 			Type:        discordgo.ApplicationCommandOptionString,
+		// 			Name:        "choice1",
+		// 			Description: "Choice 1",
+		// 			Required:    true,
+		// 		},
+		// 		{
+		// 			Type:        discordgo.ApplicationCommandOptionString,
+		// 			Name:        "choice2",
+		// 			Description: "Choice 2",
+		// 			Required:    true,
+		// 		},
+		// 	},
+		// },
 		{
 			Name:        "play",
 			Description: "Play a Youtube song, given a video url",
@@ -63,6 +63,14 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 					Required:    true,
 				},
 			},
+		},
+		{
+			Name:        "endsong",
+			Description: "Ends the current song playing",
+		},
+		{
+			Name:        "dc",
+			Description: "Disconnects the bot from the voice channel",
 		},
 	}
 
@@ -78,7 +86,7 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 		return
 	}
 
-	log.Println("Slash commands registered!.")
+	log.Println("Slash commands registered!")
 }
 
 func (b *Bot) RegisterHandlers() {

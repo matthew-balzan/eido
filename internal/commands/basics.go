@@ -4,7 +4,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func SendSimpleMessage(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
+func SendSimpleMessageResponse(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -14,7 +14,11 @@ func SendSimpleMessage(s *discordgo.Session, i *discordgo.InteractionCreate, mes
 	})
 }
 
-func SendComplexMessage(s *discordgo.Session, i *discordgo.InteractionCreate, title string, description string, urlImage string, footerText string) {
+func SendSimpleMessage(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
+	s.ChannelMessageSend(i.Interaction.ChannelID, message)
+}
+
+func SendComplexMessageResponse(s *discordgo.Session, i *discordgo.InteractionCreate, title string, description string, urlImage string, footerText string, color int) {
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
@@ -23,7 +27,7 @@ func SendComplexMessage(s *discordgo.Session, i *discordgo.InteractionCreate, ti
 				{
 					Title:       title,
 					Description: description,
-					Color:       15548997, //red
+					Color:       color,
 					Footer: &discordgo.MessageEmbedFooter{
 						Text: footerText,
 					},
