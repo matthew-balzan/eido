@@ -122,6 +122,7 @@ func Disconnect(s *discordgo.Session, i *discordgo.InteractionCreate, instance *
 	instance.Voice.Connection.Disconnect()
 	instance.Voice.Connection = nil
 	instance.Voice.ChannelId = ""
+	instance.Voice.Timer.Stop()
 
 	SendSimpleMessageResponse(s, i, "Disconnected")
 
