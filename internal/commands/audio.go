@@ -4,11 +4,13 @@ import (
 	"fmt"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/kkdai/youtube/v2"
 	"github.com/matthew-balzan/eido/internal/models"
 )
 
 func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance *models.ServerInstance) {
 	if instance.Voice.IsPlaying {
+		SendSimpleMessage(s, i, "I'm already playing a song")
 		return
 	}
 
@@ -35,6 +37,7 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 	}
 
 	if channelId == "" {
+		SendSimpleMessage(s, i, "You have to join a voice channel to play a song")
 		return
 	}
 
@@ -47,6 +50,22 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 	instance.Voice.ChannelId = channelId
 	instance.Voice.Connection = voiceConnection
 
-	instance.Voice.PlaySingleSong(urlVideo)
+	client := youtube.Client{}
+
+	videoInfo, err := client.GetVideo(urlVideo)
+	if err != nil {
+		fmt.Println("ERR: internal/models/instance.go: Couldn't fetch video info - ", err)
+		return
+	}
+
+	instance.Voice.IsPlaying = true
+
+	SendComplexMessage(s, i, videoInfo.Title, urlVideo, videoInfo.Thumbnails[1].URL, videoInfo.Duration.String())
+
+	instance.Voice.PlaySingleSong(videoInfo)
+
+	voiceConnection.Disconnect()
+
+	instance.Voice.IsPlaying = false
 
 }

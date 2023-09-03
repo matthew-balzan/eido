@@ -47,40 +47,40 @@ func CreateVoiceInstance() (i *VoiceInstance) {
 	return i
 }
 
-func (v *VoiceInstance) PlaySingleSong(url string) {
+func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	options := dca.StdEncodeOptions
 	options.RawOutput = true
 	options.Bitrate = 96
 	options.Application = "lowdelay"
+	options.Volume = 50
 
 	client := youtube.Client{}
 
-	fmt.Println("0")
-
-	videoInfo, err := client.GetVideo(url)
-	if err != nil {
-		fmt.Println("ERR: internal/models/instance.go: Couldn't fetch video info - ", err)
-		return
-	}
-
 	formats := videoInfo.Formats.WithAudioChannels()
-	stream, _, err := client.GetStream(videoInfo, &formats[0])
+	streamUrl, err := client.GetStreamURL(videoInfo, &formats[0])
 	if err != nil {
 		fmt.Println("ERR: internal/models/instance.go: Error gettin the stream - ", err)
 		return
 	}
 
-	encodingSession, err := dca.EncodeMem(stream, options)
+	encodingSession, err := dca.EncodeFile(streamUrl, options)
 	if err != nil {
 		fmt.Println("ERR: internal/models/instance.go: Error encoding - ", err)
 		return
 	}
-	defer encodingSession.Cleanup()
 
 	done := make(chan error)
+
+	v.Connection.Speaking(true)
+
 	dca.NewStream(encodingSession, v.Connection, done)
 
 	errDone := <-done
+
+	v.Connection.Speaking(false)
+
+	defer encodingSession.Cleanup()
+
 	if errDone != nil && errDone != io.EOF {
 		fmt.Println("ERR: internal/models/instance.go: Error while playing - ", err)
 		return

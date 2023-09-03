@@ -14,6 +14,12 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		return
 	}
 
+	var channelId = i.ChannelID
+
+	if channelId != "1147568352462647427" {
+		return
+	}
+
 	instance := vars.Instances[i.GuildID]
 	if instance == nil {
 		vars.Instances[i.GuildID] = models.CreateServerInstance(i.GuildID)
