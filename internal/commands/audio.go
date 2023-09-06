@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/kkdai/youtube/v2"
@@ -54,7 +54,7 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		var err error = nil
 		voiceConnection, err = s.ChannelVoiceJoin(i.GuildID, channelId, false, false)
 		if err != nil {
-			fmt.Println("ERR: internal/commands/audio.go: Error joining voice channel - ", err)
+			log.Println("ERR: internal/commands/audio.go: Error joining voice channel - ", err)
 			return
 		}
 	}
@@ -63,7 +63,7 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 
 	videoInfo, err := client.GetVideo(urlVideo)
 	if err != nil {
-		fmt.Println("ERR: internal/models/instance.go: Couldn't fetch video info - ", err)
+		log.Println("ERR: internal/models/instance.go: Couldn't fetch video info - ", err)
 		return
 	}
 

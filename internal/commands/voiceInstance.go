@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"time"
@@ -64,13 +63,13 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	formats := videoInfo.Formats.WithAudioChannels()
 	streamUrl, err := client.GetStreamURL(videoInfo, &formats[0])
 	if err != nil {
-		fmt.Println("ERR: internal/models/instance.go: Error gettin the stream - ", err)
+		log.Println("ERR: internal/models/instance.go: Error gettin the stream - ", err)
 		return
 	}
 
 	encodingSession, err := dca.EncodeFile(streamUrl, options)
 	if err != nil {
-		fmt.Println("ERR: internal/models/instance.go: Error encoding - ", err)
+		log.Println("ERR: internal/models/instance.go: Error encoding - ", err)
 		return
 	}
 
@@ -90,15 +89,14 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	v.Encoder = nil
 
 	if errDone != nil && errDone != io.EOF {
-		fmt.Println("ERR: internal/models/instance.go: Error while playing - ", err)
+		log.Println("ERR: internal/models/instance.go: Error while playing - ", errDone)
 		return
 	}
 }
 
 func (v *VoiceInstance) StopTimer() {
 	if v.Timer != nil {
-		res := v.Timer.Stop()
-		fmt.Println(res)
+		v.Timer.Stop()
 	}
 }
 
