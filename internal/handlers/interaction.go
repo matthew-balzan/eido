@@ -21,7 +21,15 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		instance = vars.Instances[i.GuildID]
 	}
 
+	// Log call
 	middlewareLogger(s, i)
+
+	// Catch panic error
+	defer func() {
+		if r := recover(); r != nil {
+			log.Println("Panic recovered")
+		}
+	}()
 
 	// Check the interaction type
 	switch i.Type {
@@ -34,7 +42,7 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		// 	commands.BetCommand(s, i)
 		case "play":
 			commands.PlayCommand(s, i, instance)
-		case "dc":
+		case "disconnect":
 			commands.Disconnect(s, i, instance)
 		case "endsong":
 			commands.EndSong(s, i, instance)

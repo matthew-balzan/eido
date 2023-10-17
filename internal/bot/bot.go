@@ -69,7 +69,7 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 			Description: "Ends the current song playing",
 		},
 		{
-			Name:        "dc",
+			Name:        "disconnect",
 			Description: "Disconnects the bot from the voice channel",
 		},
 	}

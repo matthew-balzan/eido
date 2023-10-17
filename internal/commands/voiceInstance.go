@@ -63,7 +63,7 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	formats := videoInfo.Formats.WithAudioChannels()
 	streamUrl, err := client.GetStreamURL(videoInfo, &formats[0])
 	if err != nil {
-		log.Println("ERR: internal/models/instance.go: Error gettin the stream - ", err)
+		log.Println("ERR: internal/models/instance.go: Error getting the stream - ", err)
 		return
 	}
 
@@ -80,7 +80,6 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	v.Connection.Speaking(true)
 
 	dca.NewStream(encodingSession, v.Connection, done)
-
 	errDone := <-done
 
 	v.Connection.Speaking(false)
@@ -105,13 +104,14 @@ func (v *VoiceInstance) StartTimer(s *discordgo.Session, i *discordgo.Interactio
 
 	go func() {
 		<-v.Timer.C
-		log.Println("Bot disconnected for timeout")
+		log.Println("Bot disconnected for inactivity")
 		if v.Connection != nil {
 			v.Connection.Disconnect()
 		}
 
 		v.Connection = nil
 		v.ChannelId = ""
+		v.Timer = nil
 
 		SendSimpleMessage(s, i, "Disconnected for inactivity")
 	}()

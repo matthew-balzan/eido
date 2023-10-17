@@ -87,7 +87,6 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 	instance.Voice.IsPlaying = false
 
 	instance.Voice.StartTimer(s, i)
-
 }
 
 func Disconnect(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
@@ -119,13 +118,12 @@ func Disconnect(s *discordgo.Session, i *discordgo.InteractionCreate, instance *
 		return
 	}
 
+	SendSimpleMessageResponse(s, i, "Disconnecting")
+
 	instance.Voice.Connection.Disconnect()
 	instance.Voice.Connection = nil
 	instance.Voice.ChannelId = ""
-	instance.Voice.Timer.Stop()
-
-	SendSimpleMessageResponse(s, i, "Disconnected")
-
+	instance.Voice.StopTimer()
 }
 
 func EndSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
