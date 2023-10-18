@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/jonas747/dca"
 	"github.com/kkdai/youtube/v2"
+	"github.com/matthew-balzan/dca"
 	"github.com/matthew-balzan/eido/internal/models"
 )
 
