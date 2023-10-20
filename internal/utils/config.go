@@ -2,6 +2,7 @@ package utils
 
 import (
 	"log"
+	"os"
 
 	"github.com/spf13/viper"
 
@@ -10,8 +11,16 @@ import (
 )
 
 func LoadConfig() (config models.Config, err error) {
+
+	var env = "prod"
+	var envCommand = os.Getenv("APP_ENV")
+
+	if envCommand == "prod" || envCommand == "dev" {
+		env = envCommand
+	}
+
 	viper.AddConfigPath("../../")
-	viper.SetConfigFile(".env")
+	viper.SetConfigFile("config-" + env + ".env")
 
 	viper.AutomaticEnv()
 
