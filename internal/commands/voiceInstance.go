@@ -104,27 +104,16 @@ func (v *VoiceInstance) StartTimer(s *discordgo.Session, i *discordgo.Interactio
 	v.Timer = time.NewTimer(time.Duration(models.TimeoutSecondsDisconnect) * time.Second)
 
 	go func() {
-		<-v.Timer.C
+		<-v.Timer.C // signal to disconnect
+
 		log.Println("Bot disconnected for inactivity")
-		if v.Connection != nil {
-			v.Connection.Disconnect()
-		}
-
-		if v.Queue != nil {
-			close(v.Queue)
-		}
-
-		v.Connection = nil
-		v.ChannelId = ""
-		v.Timer = nil
-		v.Stream = nil
-
+		v.disconnect()
 		SendSimpleMessage(s, i, "Disconnected for inactivity")
 	}()
 }
 
 func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.InteractionCreate, voiceChannel string) {
-	v.Queue = make(chan Song, 50)
+	v.Queue = make(chan Song, models.MaxQueueLength)
 
 	var err error = nil
 	var voiceConnection *discordgo.VoiceConnection = nil
@@ -164,13 +153,18 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 	}()
 }
 
-func (v *VoiceInstance) addToQueue(song Song) {
+func (v *VoiceInstance) addToQueue(song Song) (res bool) {
 	if v.Queue == nil {
 		log.Println("ERR: internal/models/instance.go: Queue not initialized (somehow)")
-		return
+		return false
+	}
+
+	if len(v.Queue) >= models.MaxQueueLength {
+		return false
 	}
 
 	v.Queue <- song
+	return true
 }
 
 func (v *VoiceInstance) skip() {
@@ -184,4 +178,24 @@ func (v *VoiceInstance) setPause(pause bool) {
 	if v.Stream != nil {
 		v.Stream.SetPaused(pause)
 	}
+}
+
+func (v *VoiceInstance) disconnect() {
+	if v.Connection != nil {
+		v.Connection.Disconnect()
+	}
+	v.Connection = nil
+	v.ChannelId = ""
+	v.Stream = nil
+	v.Timer = nil
+	if v.Queue != nil {
+		close(v.Queue)
+	}
+}
+
+func (v *VoiceInstance) clearQueue() {
+	for len(v.Queue) > 0 {
+		<-v.Queue
+	}
+	v.skip()
 }

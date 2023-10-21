@@ -50,6 +50,8 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			commands.PauseSong(s, i, instance)
 		case "resume":
 			commands.ResumeSong(s, i, instance)
+		case "clear":
+			commands.ClearQueue(s, i, instance)
 		}
 
 	}

@@ -80,6 +80,10 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 			Name:        "disconnect",
 			Description: "Disconnects the bot from the voice channel",
 		},
+		{
+			Name:        "clear",
+			Description: "Clear the queue",
+		},
 	}
 
 	app, err := session.Application("@me")
