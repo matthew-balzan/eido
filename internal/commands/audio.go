@@ -219,3 +219,28 @@ func ClearQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *
 
 	SendSimpleMessageResponse(s, i, "Queue cleared")
 }
+
+func GetQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
+	channelId := getAudioChannel(s, i)
+
+	if !isBotInAChannel(s, i, instance, true) {
+		return
+	}
+
+	if !checkAudioBasicPrerequisites(s, i, instance, channelId, true) {
+		return
+	}
+
+	queue := instance.Voice.getQueueList()
+	var result = ""
+
+	if len(queue) == 0 {
+		result = "Queue is empty"
+	} else {
+		for i, song := range queue {
+			result += strconv.Itoa(i) + ". " + song.videoInfo.Title + " \n"
+		}
+	}
+
+	SendSimpleMessageResponse(s, i, result)
+}

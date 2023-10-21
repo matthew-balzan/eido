@@ -52,6 +52,8 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			commands.ResumeSong(s, i, instance)
 		case "clear":
 			commands.ClearQueue(s, i, instance)
+		case "queue":
+			commands.GetQueue(s, i, instance)
 		}
 
 	}

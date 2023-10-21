@@ -23,6 +23,7 @@ type VoiceInstance struct {
 	Stream     *dca.StreamingSession
 	IsPlaying  bool
 	Queue      chan Song
+	QueueList  []Song //Copy of the channel, needed to show queue to the user
 	Timer      *time.Timer
 }
 
@@ -46,6 +47,7 @@ func CreateVoiceInstance() (i *VoiceInstance) {
 	i.IsPlaying = false
 	i.Timer = nil
 	i.Queue = nil
+	i.QueueList = make([]Song, 0, models.MaxQueueLength)
 	return i
 }
 
@@ -146,8 +148,10 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 
 			v.PlaySingleSong(song.videoInfo)
 
+			if len(v.QueueList) > 0 { // in case a clear has happened
+				v.QueueList = v.QueueList[1:] // dequeue
+			}
 			v.IsPlaying = false
-
 			v.StartTimer(s, i)
 		}
 
@@ -165,6 +169,7 @@ func (v *VoiceInstance) addToQueue(song Song) (res bool) {
 	}
 
 	v.Queue <- song
+	v.QueueList = append(v.QueueList, song)
 	return true
 }
 
@@ -198,5 +203,10 @@ func (v *VoiceInstance) clearQueue() {
 	for len(v.Queue) > 0 {
 		<-v.Queue
 	}
+	v.QueueList = make([]Song, 0, models.MaxQueueLength)
 	v.skip()
+}
+
+func (v *VoiceInstance) getQueueList() (queue []Song) {
+	return v.QueueList
 }

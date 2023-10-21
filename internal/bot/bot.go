@@ -84,6 +84,10 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 			Name:        "clear",
 			Description: "Clear the queue",
 		},
+		{
+			Name:        "queue",
+			Description: "Lists the songs in the queue",
+		},
 	}
 
 	app, err := session.Application("@me")
