@@ -1,7 +1,9 @@
 package commands
 
 import (
+	"log"
 	"strconv"
+	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/kkdai/youtube/v2"
@@ -81,7 +83,7 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		optionMap[opt.Name] = opt
 	}
 
-	urlVideo := optionMap["url"].StringValue()
+	url := optionMap["url"].StringValue()
 
 	channelId := getAudioChannel(s, i)
 
@@ -89,6 +91,16 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		return
 	}
 
+	log.Println(url)
+
+	if strings.Contains(url, "playlist") {
+		playCommandPlaylist(s, i, instance, channelId, url)
+	} else {
+		playCommandVideo(s, i, instance, channelId, url)
+	}
+}
+
+func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlVideo string) {
 	client := youtube.Client{}
 
 	videoInfo, err := client.GetVideo(urlVideo)
@@ -123,7 +135,68 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		SendSimpleMessageResponse(
 			s,
 			i,
-			"Couldnt add song to queue, check if you went over the queue limit ("+strconv.Itoa(models.MaxQueueLength)+")",
+			"Couldnt add song to queue. Check if you went over the queue limit ("+strconv.Itoa(models.MaxQueueLength)+")",
+		)
+	}
+}
+
+func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlPlaylist string) {
+	client := youtube.Client{}
+
+	playlistInfo, err := client.GetPlaylist(urlPlaylist)
+
+	if err != nil || playlistInfo == nil {
+		log.Println(err)
+		SendSimpleMessageResponse(
+			s,
+			i,
+			"Couldn't fetch playlist. Check if it's public.",
+		)
+		return
+	}
+
+	if instance.Voice.Connection == nil { // if there's already a voice connection
+		instance.Voice.startAudioSession(s, i, channelId) //start a new session
+	}
+
+	SendSimpleMessageResponse(
+		s,
+		i,
+		"Adding playlist to queue. It may take some time ...",
+	)
+
+	globalError := false
+
+	for _, entry := range playlistInfo.Videos {
+		video, err := client.VideoFromPlaylistEntry(entry)
+
+		if err != nil {
+			globalError = true
+		}
+
+		song := Song{
+			url:       "https://www.youtube.com/watch?v=" + video.ID,
+			videoInfo: video,
+		}
+
+		result := instance.Voice.addToQueue(song)
+
+		if !result {
+			globalError = true
+		}
+	}
+
+	if globalError {
+		SendSimpleMessage(
+			s,
+			i,
+			"Playlist added to queue, but one or more videos have not been added due to some errors. Check if you went over the limit of the queue ("+strconv.Itoa(models.MaxQueueLength)+")",
+		)
+	} else {
+		SendSimpleMessage(
+			s,
+			i,
+			"Playlist added to queue",
 		)
 	}
 }
