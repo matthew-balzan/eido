@@ -4,18 +4,28 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func SendSimpleMessageResponse(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
+func SendSimpleMessageResponse(s *discordgo.Session, i *discordgo.InteractionCreate, message string, color int) {
 
 	s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: message,
+			Embeds: []*discordgo.MessageEmbed{
+				{
+					Description: message,
+					Color:       color,
+				},
+			},
 		},
 	})
 }
 
-func SendSimpleMessage(s *discordgo.Session, i *discordgo.InteractionCreate, message string) {
-	s.ChannelMessageSend(i.Interaction.ChannelID, message)
+func SendSimpleMessage(s *discordgo.Session, i *discordgo.InteractionCreate, message string, color int) {
+	s.ChannelMessageSendEmbeds(i.ChannelID, []*discordgo.MessageEmbed{
+		{
+			Description: message,
+			Color:       color,
+		},
+	})
 }
 
 func SendComplexMessage(s *discordgo.Session, i *discordgo.InteractionCreate, title string, description string, urlImage string, footerText string, color int, author string) {

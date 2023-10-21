@@ -35,14 +35,14 @@ func checkAudioBasicPrerequisites(s *discordgo.Session, i *discordgo.Interaction
 	// if the user is not in a voice channel
 	if channelId == "" {
 		if response {
-			SendSimpleMessageResponse(s, i, "You have to join a voice channel")
+			SendSimpleMessageResponse(s, i, "You have to join a voice channel", models.ColorError)
 		}
 		return false
 	}
 	// if the bot is in another channel
 	if instance.Voice.Connection != nil && instance.Voice.Connection.ChannelID != channelId {
 		if response {
-			SendSimpleMessageResponse(s, i, "I'm playing in another channel")
+			SendSimpleMessageResponse(s, i, "I'm playing in another channel", models.ColorError)
 		}
 		return
 	}
@@ -55,7 +55,7 @@ func isBotInAChannel(s *discordgo.Session, i *discordgo.InteractionCreate, insta
 	// if the bot is not in a channel
 	if instance.Voice.Connection == nil {
 		if response {
-			SendSimpleMessageResponse(s, i, "I'm not in a voice channel right now")
+			SendSimpleMessageResponse(s, i, "I'm not in a voice channel right now", models.ColorError)
 		}
 		return false
 	}
@@ -68,7 +68,7 @@ func isBotPlaying(s *discordgo.Session, i *discordgo.InteractionCreate, instance
 	// if the bot is not playing a song
 	if !instance.Voice.IsPlaying {
 		if response {
-			SendSimpleMessageResponse(s, i, "I'm not playing anything right now")
+			SendSimpleMessageResponse(s, i, "I'm not playing anything right now", models.ColorError)
 		}
 		return false
 	}
@@ -110,6 +110,7 @@ func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, inst
 			s,
 			i,
 			"Couldn't fetch the video, check if the url is correct",
+			models.ColorError,
 		)
 		return
 	}
@@ -130,12 +131,14 @@ func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, inst
 			s,
 			i,
 			"*"+song.videoInfo.Title+"* added to queue",
+			models.ColorDefault,
 		)
 	} else {
 		SendSimpleMessageResponse(
 			s,
 			i,
 			"Couldnt add song to queue. Check if you went over the queue limit ("+strconv.Itoa(models.MaxQueueLength)+")",
+			models.ColorError,
 		)
 	}
 }
@@ -151,6 +154,7 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 			s,
 			i,
 			"Couldn't fetch playlist. Check if it's public.",
+			models.ColorError,
 		)
 		return
 	}
@@ -163,6 +167,7 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 		s,
 		i,
 		"Adding playlist to queue. It may take some time ...",
+		models.ColorDefault,
 	)
 
 	globalError := false
@@ -191,12 +196,14 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 			s,
 			i,
 			"Playlist added to queue, but one or more videos have not been added due to some errors. Check if you went over the limit of the queue ("+strconv.Itoa(models.MaxQueueLength)+")",
+			models.ColorError,
 		)
 	} else {
 		SendSimpleMessage(
 			s,
 			i,
 			"Playlist added to queue",
+			models.ColorDefault,
 		)
 	}
 }
@@ -212,7 +219,7 @@ func Disconnect(s *discordgo.Session, i *discordgo.InteractionCreate, instance *
 		return
 	}
 
-	SendSimpleMessageResponse(s, i, "Disconnecting")
+	SendSimpleMessageResponse(s, i, "Disconnecting", models.ColorDefault)
 
 	instance.Voice.disconnect()
 }
@@ -234,7 +241,7 @@ func SkipSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *Se
 
 	instance.Voice.skip()
 
-	SendSimpleMessageResponse(s, i, "Song has been skipped")
+	SendSimpleMessageResponse(s, i, "Song has been skipped", models.ColorDefault)
 }
 
 func PauseSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
@@ -254,7 +261,7 @@ func PauseSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *S
 
 	instance.Voice.setPause(true)
 
-	SendSimpleMessageResponse(s, i, "Song has been paused")
+	SendSimpleMessageResponse(s, i, "Song has been paused", models.ColorDefault)
 }
 
 func ResumeSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
@@ -274,7 +281,7 @@ func ResumeSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *
 
 	instance.Voice.setPause(false)
 
-	SendSimpleMessageResponse(s, i, "Song has been resumed")
+	SendSimpleMessageResponse(s, i, "Song has been resumed", models.ColorDefault)
 }
 
 func ClearQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
@@ -290,7 +297,7 @@ func ClearQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *
 
 	instance.Voice.clearQueue()
 
-	SendSimpleMessageResponse(s, i, "Queue cleared")
+	SendSimpleMessageResponse(s, i, "Queue cleared", models.ColorDefault)
 }
 
 func GetQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
@@ -305,15 +312,19 @@ func GetQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *Se
 	}
 
 	queue := instance.Voice.getQueueList()
-	var result = ""
+	var message = ""
 
 	if len(queue) == 0 {
-		result = "Queue is empty"
+		message = "Queue is empty"
 	} else {
 		for i, song := range queue {
-			result += strconv.Itoa(i) + ". " + song.videoInfo.Title + " \n"
+			row := strconv.Itoa(i) + ". " + song.videoInfo.Title
+			if i == 0 {
+				row += " -> Now playing"
+			}
+			message += row + " \n"
 		}
 	}
 
-	SendSimpleMessageResponse(s, i, result)
+	SendSimpleMessageResponse(s, i, message, models.ColorDefault)
 }

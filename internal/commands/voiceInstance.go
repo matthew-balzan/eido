@@ -110,7 +110,7 @@ func (v *VoiceInstance) StartTimer(s *discordgo.Session, i *discordgo.Interactio
 
 		log.Println("Bot disconnected for inactivity")
 		v.disconnect()
-		SendSimpleMessage(s, i, "Disconnected for inactivity")
+		SendSimpleMessage(s, i, "Disconnected for inactivity", models.ColorDefault)
 	}()
 }
 
@@ -142,7 +142,7 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 				song.url,
 				song.videoInfo.Thumbnails[1].URL,
 				"Duration: "+song.videoInfo.Duration.String(),
-				models.ColorRed,
+				models.ColorDefault,
 				"Now playing:",
 			)
 
