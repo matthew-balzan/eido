@@ -127,6 +127,7 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 	v.Connection = voiceConnection
 
 	go func() {
+		v.StartTimer(s, i) // in case the first song will not be added because of an error
 		for song := range v.Queue {
 			v.StopTimer()
 

@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"log"
 	"strconv"
 
 	"github.com/bwmarrin/discordgo"
@@ -90,16 +89,21 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		return
 	}
 
-	if instance.Voice.Connection == nil { // if there's already a voice connection
-		instance.Voice.startAudioSession(s, i, channelId) //start a new session
-	}
-
 	client := youtube.Client{}
 
 	videoInfo, err := client.GetVideo(urlVideo)
-	if err != nil {
-		log.Println("ERR: internal/models/instance.go: Couldn't fetch video info - ", err)
+
+	if err != nil || videoInfo == nil {
+		SendSimpleMessageResponse(
+			s,
+			i,
+			"Couldn't fetch the video, check if the url is correct",
+		)
 		return
+	}
+
+	if instance.Voice.Connection == nil { // if there's already a voice connection
+		instance.Voice.startAudioSession(s, i, channelId) //start a new session
 	}
 
 	song := Song{
