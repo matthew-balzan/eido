@@ -44,9 +44,14 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			commands.PlayCommand(s, i, instance)
 		case "disconnect":
 			commands.Disconnect(s, i, instance)
-		case "endsong":
-			commands.EndSong(s, i, instance)
+		case "skip":
+			commands.SkipSong(s, i, instance)
+		case "pause":
+			commands.PauseSong(s, i, instance)
+		case "resume":
+			commands.ResumeSong(s, i, instance)
 		}
+
 	}
 }
 

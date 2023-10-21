@@ -5,7 +5,6 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/kkdai/youtube/v2"
-	"github.com/matthew-balzan/eido/internal/models"
 )
 
 func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
@@ -41,22 +40,8 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		return
 	}
 
-	if instance.Voice.IsPlaying { //if the bot is already playing a song
-		SendSimpleMessageResponse(s, i, "I'm already playing a song, you have to wait or skip it")
-		return
-	}
-
-	var voiceConnection *discordgo.VoiceConnection = nil
-
-	if instance.Voice.Connection != nil { // if there's already a voice connection
-		voiceConnection = instance.Voice.Connection // take that one
-	} else { // else join the channel
-		var err error = nil
-		voiceConnection, err = s.ChannelVoiceJoin(i.GuildID, channelId, false, false)
-		if err != nil {
-			log.Println("ERR: internal/commands/audio.go: Error joining voice channel - ", err)
-			return
-		}
+	if instance.Voice.Connection == nil { // if there's already a voice connection
+		instance.Voice.startAudioSession(s, i, channelId)
 	}
 
 	client := youtube.Client{}
@@ -67,26 +52,18 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		return
 	}
 
-	SendComplexMessageResponse(
+	song := Song{
+		url:       urlVideo,
+		videoInfo: videoInfo,
+	}
+
+	SendSimpleMessageResponse(
 		s,
 		i,
-		videoInfo.Title,
-		urlVideo,
-		videoInfo.Thumbnails[1].URL,
-		"Duration: "+videoInfo.Duration.String(),
-		models.ColorRed,
+		"*"+song.videoInfo.Title+"* added to queue",
 	)
 
-	instance.Voice.StopTimer()
-	instance.Voice.IsPlaying = true
-	instance.Voice.ChannelId = channelId
-	instance.Voice.Connection = voiceConnection
-
-	instance.Voice.PlaySingleSong(videoInfo)
-
-	instance.Voice.IsPlaying = false
-
-	instance.Voice.StartTimer(s, i)
+	instance.Voice.addToQueue(song)
 }
 
 func Disconnect(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
@@ -123,10 +100,14 @@ func Disconnect(s *discordgo.Session, i *discordgo.InteractionCreate, instance *
 	instance.Voice.Connection.Disconnect()
 	instance.Voice.Connection = nil
 	instance.Voice.ChannelId = ""
+	instance.Voice.Stream = nil
 	instance.Voice.StopTimer()
+	if instance.Voice.Queue != nil {
+		close(instance.Voice.Queue)
+	}
 }
 
-func EndSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
+func SkipSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
 	channelId := ""
 
 	channels := s.State.Guilds
@@ -140,17 +121,14 @@ func EndSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *Ser
 		}
 	}
 
-	if instance.Voice.Connection == nil { // if the bot is not in a channel
+	// if the bot is not in a channel
+	if instance.Voice.Connection == nil {
 		SendSimpleMessageResponse(s, i, "I'm not playing anything right now")
 		return
 	}
 
-	if channelId == "" { // if the user is not in a voice channel
-		SendSimpleMessageResponse(s, i, "You have to join the voice channel I'm at to disconnect me")
-		return
-	}
-
-	if instance.Voice.Connection != nil && instance.Voice.Connection.ChannelID != channelId { // if the bot is in another channel
+	// if the user is not in a voice channel or not in the same channel
+	if channelId == "" || (instance.Voice.Connection != nil && instance.Voice.Connection.ChannelID != channelId) {
 		SendSimpleMessageResponse(s, i, "You have to join the voice channel I'm at to disconnect me")
 		return
 	}
@@ -160,10 +138,79 @@ func EndSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *Ser
 		return
 	}
 
-	instance.Voice.Encoder.Stop()
+	instance.Voice.skip()
 
-	SendSimpleMessageResponse(s, i, "Song has ended")
+	SendSimpleMessageResponse(s, i, "Song has been skipped")
+}
 
-	instance.Voice.IsPlaying = false
+func PauseSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
+	channelId := ""
 
+	channels := s.State.Guilds
+
+	for _, c := range channels {
+		voiceStates := c.VoiceStates
+		for _, v := range voiceStates {
+			if v.UserID == i.Member.User.ID {
+				channelId = v.ChannelID
+			}
+		}
+	}
+
+	// if the bot is not in a channel
+	if instance.Voice.Connection == nil {
+		SendSimpleMessageResponse(s, i, "I'm not playing anything right now")
+		return
+	}
+
+	// if the user is not in a voice channel or not in the same channel
+	if channelId == "" || (instance.Voice.Connection != nil && instance.Voice.Connection.ChannelID != channelId) {
+		SendSimpleMessageResponse(s, i, "You have to join the voice channel I'm at to disconnect me")
+		return
+	}
+
+	if !instance.Voice.IsPlaying { // if the bot is not playing a song
+		SendSimpleMessageResponse(s, i, "I'm not playing anything right now")
+		return
+	}
+
+	instance.Voice.setPause(true)
+
+	SendSimpleMessageResponse(s, i, "Song has been paused")
+}
+
+func ResumeSong(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
+	channelId := ""
+
+	channels := s.State.Guilds
+
+	for _, c := range channels {
+		voiceStates := c.VoiceStates
+		for _, v := range voiceStates {
+			if v.UserID == i.Member.User.ID {
+				channelId = v.ChannelID
+			}
+		}
+	}
+
+	// if the bot is not in a channel
+	if instance.Voice.Connection == nil {
+		SendSimpleMessageResponse(s, i, "I'm not playing anything right now")
+		return
+	}
+
+	// if the user is not in a voice channel or not in the same channel
+	if channelId == "" || (instance.Voice.Connection != nil && instance.Voice.Connection.ChannelID != channelId) {
+		SendSimpleMessageResponse(s, i, "You have to join the voice channel I'm at to disconnect me")
+		return
+	}
+
+	if !instance.Voice.IsPlaying { // if the bot is not playing a song
+		SendSimpleMessageResponse(s, i, "I'm not playing anything right now")
+		return
+	}
+
+	instance.Voice.setPause(false)
+
+	SendSimpleMessageResponse(s, i, "Song has been resumed")
 }

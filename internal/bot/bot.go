@@ -54,7 +54,7 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 		// },
 		{
 			Name:        "play",
-			Description: "Play a Youtube song, given a video url",
+			Description: "Add a Youtube song to the queue, given a video url",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
@@ -65,8 +65,16 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 			},
 		},
 		{
-			Name:        "endsong",
-			Description: "Ends the current song playing",
+			Name:        "skip",
+			Description: "Skips the current song",
+		},
+		{
+			Name:        "pause",
+			Description: "Pause the current song",
+		},
+		{
+			Name:        "resume",
+			Description: "Resume the current song",
 		},
 		{
 			Name:        "disconnect",

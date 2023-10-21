@@ -22,15 +22,13 @@ type VoiceInstance struct {
 	Encoder    *dca.EncodeSession
 	Stream     *dca.StreamingSession
 	IsPlaying  bool
-	Queue      []Song
+	Queue      chan Song
 	Timer      *time.Timer
 }
 
 type Song struct {
-	Id    string
-	Title string
-	Url   string
-	User  string
+	videoInfo *youtube.Video
+	url       string
 }
 
 func CreateServerInstance(id string) (i *ServerInstance) {
@@ -47,7 +45,7 @@ func CreateVoiceInstance() (i *VoiceInstance) {
 	i.Encoder = nil
 	i.IsPlaying = false
 	i.Timer = nil
-	i.Queue = []Song{}
+	i.Queue = nil
 	return i
 }
 
@@ -79,13 +77,16 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 
 	v.Connection.Speaking(true)
 
-	dca.NewStream(encodingSession, v.Connection, done)
+	var stream = dca.NewStream(encodingSession, v.Connection, done)
+	v.Stream = stream
 	errDone := <-done
 
 	v.Connection.Speaking(false)
 
-	defer encodingSession.Cleanup()
 	v.Encoder = nil
+	v.Stream = nil
+
+	defer encodingSession.Cleanup()
 
 	if errDone != nil && errDone != io.EOF {
 		log.Println("ERR: internal/models/instance.go: Error while playing - ", errDone)
@@ -109,10 +110,78 @@ func (v *VoiceInstance) StartTimer(s *discordgo.Session, i *discordgo.Interactio
 			v.Connection.Disconnect()
 		}
 
+		if v.Queue != nil {
+			close(v.Queue)
+		}
+
 		v.Connection = nil
 		v.ChannelId = ""
 		v.Timer = nil
+		v.Stream = nil
 
 		SendSimpleMessage(s, i, "Disconnected for inactivity")
 	}()
+}
+
+func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.InteractionCreate, voiceChannel string) {
+	v.Queue = make(chan Song, 50)
+
+	var err error = nil
+	var voiceConnection *discordgo.VoiceConnection = nil
+	voiceConnection, err = s.ChannelVoiceJoin(i.GuildID, voiceChannel, false, false)
+	if err != nil {
+		log.Println("ERR: internal/commands/audio.go: Error joining voice channel - ", err)
+		return
+	}
+
+	v.ChannelId = voiceChannel
+	v.Connection = voiceConnection
+
+	go func() {
+		for song := range v.Queue {
+			v.StopTimer()
+
+			v.IsPlaying = true
+
+			SendComplexMessage(
+				s,
+				i,
+				song.videoInfo.Title,
+				song.url,
+				song.videoInfo.Thumbnails[1].URL,
+				"Duration: "+song.videoInfo.Duration.String(),
+				models.ColorRed,
+				"Now playing:",
+			)
+
+			v.PlaySingleSong(song.videoInfo)
+
+			v.IsPlaying = false
+
+			v.StartTimer(s, i)
+		}
+
+	}()
+}
+
+func (v *VoiceInstance) addToQueue(song Song) {
+	if v.Queue == nil {
+		log.Println("ERR: internal/models/instance.go: Queue not initialized (somehow)")
+		return
+	}
+
+	v.Queue <- song
+}
+
+func (v *VoiceInstance) skip() {
+	if v.Encoder != nil {
+		v.Encoder.Cleanup()
+	}
+	v.setPause(false)
+}
+
+func (v *VoiceInstance) setPause(pause bool) {
+	if v.Stream != nil {
+		v.Stream.SetPaused(pause)
+	}
 }
