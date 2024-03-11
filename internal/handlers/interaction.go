@@ -27,7 +27,7 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	// Catch panic error
 	defer func() {
 		if r := recover(); r != nil {
-			log.Println("Panic recovered")
+			log.Println("Panic recovered", r)
 		}
 	}()
 
