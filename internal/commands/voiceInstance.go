@@ -56,18 +56,18 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	options.RawOutput = true
 	options.Bitrate = 96
 	options.Application = "lowdelay"
-	options.Volume = 50
+	options.Volume = 0.3
 
 	client := youtube.Client{}
 
 	formats := videoInfo.Formats.WithAudioChannels()
-	streamUrl, err := client.GetStreamURL(videoInfo, &formats[0])
+	streamYT, _, err := client.GetStream(videoInfo, &formats[0])
 	if err != nil {
 		log.Println("ERR: internal/models/instance.go: Error getting the stream - ", err)
 		return
 	}
 
-	encodingSession, err := dca.EncodeFile(streamUrl, options)
+	encodingSession, err := dca.EncodeMem(streamYT, options)
 	if err != nil {
 		log.Println("ERR: internal/models/instance.go: Error encoding - ", err)
 		return
@@ -83,12 +83,11 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	v.Stream = stream
 	errDone := <-done
 
-	v.Connection.Speaking(false)
-
 	v.Encoder = nil
 	v.Stream = nil
 
 	defer encodingSession.Cleanup()
+	v.Connection.Speaking(false)
 
 	if errDone != nil && errDone != io.EOF {
 		log.Println("ERR: internal/models/instance.go: Error while playing - ", errDone)
@@ -119,7 +118,8 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 
 	var err error = nil
 	var voiceConnection *discordgo.VoiceConnection = nil
-	voiceConnection, err = s.ChannelVoiceJoin(i.GuildID, voiceChannel, false, false)
+	voiceConnection, err = s.ChannelVoiceJoin(i.GuildID, voiceChannel, false, true)
+
 	if err != nil {
 		log.Println("ERR: internal/commands/audio.go: Error joining voice channel - ", err)
 		return
@@ -145,6 +145,12 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 				models.ColorDefault,
 				"Now playing:",
 			)
+
+			isConnectionReady := v.Connection.Ready
+
+			for i := 0; !isConnectionReady && i < 6; i++ { // retry 6 times, which is equals to 30 seconds
+				time.Sleep(5 * time.Second)
+			}
 
 			v.PlaySingleSong(song.videoInfo)
 
