@@ -146,9 +146,7 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 				"Now playing:",
 			)
 
-			isConnectionReady := v.Connection.Ready
-
-			for i := 0; !isConnectionReady && i < 6; i++ { // retry 6 times, which is equals to 30 seconds
+			for i := 0; !v.Connection.Ready && i < 6; i++ { // retry 6 times, which is equals to 30 seconds
 				time.Sleep(5 * time.Second)
 			}
 
