@@ -41,7 +41,7 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		// case "bet":
 		// 	commands.BetCommand(s, i)
 		case "play":
-			commands.PlayCommand(s, i, instance)
+			commands.PlayCommand(s, i, instance, vars.Config)
 		case "disconnect":
 			commands.Disconnect(s, i, instance)
 		case "skip":
@@ -59,7 +59,7 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 	}
 }
 
-func middlewareLogger(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func middlewareLogger(_ *discordgo.Session, i *discordgo.InteractionCreate) {
 	username := i.Member.User.Username
 	command := i.ApplicationCommandData().Name
 	log.Println(username + " used: " + command)
