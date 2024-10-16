@@ -1,13 +1,18 @@
 package commands
 
 import (
+	"context"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/kkdai/youtube/v2"
+	youtubeV2 "github.com/kkdai/youtube/v2"
 	"github.com/matthew-balzan/eido/internal/models"
+	"golang.org/x/net/html"
+	"google.golang.org/api/option"
+	"google.golang.org/api/youtube/v3"
 )
 
 // getAudioChannel returns the channelId.
@@ -75,7 +80,7 @@ func isBotPlaying(s *discordgo.Session, i *discordgo.InteractionCreate, instance
 	return true
 }
 
-func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
+func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, configs *models.Config) {
 	options := i.ApplicationCommandData().Options
 
 	optionMap := make(map[string]*discordgo.ApplicationCommandInteractionDataOption, len(options))
@@ -83,7 +88,7 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		optionMap[opt.Name] = opt
 	}
 
-	url := optionMap["url"].StringValue()
+	input := optionMap["input"].StringValue()
 
 	channelId := getAudioChannel(s, i)
 
@@ -91,17 +96,23 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 		return
 	}
 
-	log.Println(url)
-
-	if strings.Contains(url, "playlist") {
-		playCommandPlaylist(s, i, instance, channelId, url)
-	} else {
+	switch {
+	case strings.Contains(input, "/playlist?"):
+		playCommandPlaylist(s, i, instance, channelId, input)
+	case (strings.Contains(input, "youtube.com") || strings.Contains(input, "youtu.be")):
+		playCommandVideo(s, i, instance, channelId, input)
+	case strings.Contains(input, "spotify.com"):
+		title := getVideoTitleFromSpotify(input)
+		url := searchVideoUrl(title, configs.YoutubeKey)
+		playCommandVideo(s, i, instance, channelId, url)
+	default:
+		url := searchVideoUrl(input, configs.YoutubeKey)
 		playCommandVideo(s, i, instance, channelId, url)
 	}
 }
 
 func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlVideo string) {
-	client := youtube.Client{}
+	client := youtubeV2.Client{}
 
 	videoInfo, err := client.GetVideo(urlVideo)
 
@@ -144,7 +155,7 @@ func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, inst
 }
 
 func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlPlaylist string) {
-	client := youtube.Client{}
+	client := youtubeV2.Client{}
 
 	playlistInfo, err := client.GetPlaylist(urlPlaylist)
 
@@ -206,6 +217,44 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 			models.ColorDefault,
 		)
 	}
+}
+
+func getVideoTitleFromSpotify(input string) (url string) {
+	res, _ := http.Get(input)
+	doc, _ := html.Parse(res.Body)
+
+	title := doc.FirstChild.NextSibling.FirstChild.FirstChild.NextSibling.FirstChild.Data //TODO
+
+	log.Println(title)
+
+	title = strings.ReplaceAll(title, "- song by", "")
+	title = strings.ReplaceAll(title, "| Spotify", "")
+
+	return title
+}
+
+func searchVideoUrl(input string, key string) (url string) {
+
+	service, err := youtube.NewService(context.Background(), option.WithAPIKey(key))
+	if err != nil {
+		log.Fatalf("Error creating new YouTube client: %v", err)
+	}
+
+	// Make the API call to YouTube.
+	call := service.Search.List([]string{"id", "snippet"}).
+		Q(input).
+		MaxResults(5)
+	response, _ := call.Do()
+
+	// Iterate through each item and add it to the array if it's a video.
+	for _, item := range response.Items {
+		if item.Id.Kind == "youtube#video" {
+			// return the first video
+			return "https://www.youtube.com/watch?v=" + item.Id.VideoId
+		}
+	}
+
+	return ""
 }
 
 func Disconnect(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {

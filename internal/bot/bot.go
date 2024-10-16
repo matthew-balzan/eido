@@ -54,12 +54,12 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 		// },
 		{
 			Name:        "play",
-			Description: "Add a Youtube song or playlist to the queue",
+			Description: "Adds a song or playlist to the queue. Supports youtube links, spotify links and youtube search",
 			Options: []*discordgo.ApplicationCommandOption{
 				{
 					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        "url",
-					Description: "Url of the song or playlist",
+					Name:        "input",
+					Description: "Url of the song or search input",
 					Required:    true,
 				},
 			},
