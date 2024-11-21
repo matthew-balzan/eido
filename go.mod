@@ -50,7 +50,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/jonas747/ogg v0.0.0-20161220051205-b4f6f4cf3757 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
-	github.com/matthew-balzan/dca v0.0.0-20241016164712-54e1fdc93899
+	github.com/matthew-balzan/dca v0.0.0-20241121134803-1463cc9524cc
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/spf13/afero v1.11.0 // indirect
