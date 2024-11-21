@@ -225,8 +225,6 @@ func getVideoTitleFromSpotify(input string) (url string) {
 
 	title := doc.FirstChild.NextSibling.FirstChild.FirstChild.NextSibling.FirstChild.Data //TODO
 
-	log.Println(title)
-
 	title = strings.ReplaceAll(title, "- song by", "")
 	title = strings.ReplaceAll(title, "| Spotify", "")
 
