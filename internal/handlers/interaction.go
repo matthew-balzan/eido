@@ -38,8 +38,6 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		switch i.ApplicationCommandData().Name {
 		case "ping":
 			commands.PingCommand(s, i)
-		// case "bet":
-		// 	commands.BetCommand(s, i)
 		case "play":
 			commands.PlayCommand(s, i, instance, vars.Config)
 		case "disconnect":
