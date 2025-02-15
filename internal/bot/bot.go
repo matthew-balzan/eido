@@ -62,6 +62,12 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 					Description: "Url of the song or search input",
 					Required:    true,
 				},
+				{
+					Type:        discordgo.ApplicationCommandOptionInteger,
+					Name:        "skip-playlist",
+					Description: "Number of songs to skip in case the input is a playlist",
+					Required:    false,
+				},
 			},
 		},
 		{

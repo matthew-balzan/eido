@@ -1,8 +1,12 @@
 package commands
 
 import (
+	"bufio"
+	"context"
 	"io"
 	"log"
+	"os"
+	"os/exec"
 	"time"
 
 	"github.com/bwmarrin/discordgo"
@@ -26,7 +30,6 @@ type VoiceInstance struct {
 	QueueList  []Song //Copy of the channel, needed to show queue to the user
 	Timer      *time.Timer
 }
-
 type Song struct {
 	videoInfo *youtube.Video
 	url       string
@@ -51,27 +54,38 @@ func CreateVoiceInstance() (i *VoiceInstance) {
 	return i
 }
 
-func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
+func (v *VoiceInstance) PlaySingleSong(url string) {
 	options := dca.StdEncodeOptions
 	options.RawOutput = true
 	options.Bitrate = 96
 	options.Application = "lowdelay"
-	options.Volume = 0.3
+	options.AudioFilter = "volume=0.1"
+	options.BufferedFrames = 1024 * 1024 * 4
 
-	client := youtube.Client{}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	formats := videoInfo.Formats.WithAudioChannels()
-	streamYT, _, err := client.GetStream(videoInfo, &formats[0])
+	cmd := exec.CommandContext(ctx, "yt-dlp", "-f", "best*[vcodec=none][acodec=opus]", "-o", "-", "--download-sections", "*from-url", url)
+	defer cmd.Wait()
+
+	stdout, err := cmd.StdoutPipe()
+	cmd.Stderr = os.Stderr
+
 	if err != nil {
-		log.Println("ERR: internal/models/instance.go: Error getting the stream - ", err)
-		return
+		log.Println("ERR: internal/models/instance.go: Error calling os exec yt-dlp - ", err)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Println("ERR: internal/models/instance.go: Error starting the yt-dlp command - ", err)
 	}
 
-	encodingSession, err := dca.EncodeMem(streamYT, options)
+	buf := bufio.NewReaderSize(stdout, 8*1024*1024)
+
+	encodingSession, err := dca.EncodeMem(buf, options)
 	if err != nil {
 		log.Println("ERR: internal/models/instance.go: Error encoding - ", err)
 		return
 	}
+	defer encodingSession.Cleanup()
 
 	v.Encoder = encodingSession
 
@@ -82,11 +96,11 @@ func (v *VoiceInstance) PlaySingleSong(videoInfo *youtube.Video) {
 	var stream = dca.NewStream(encodingSession, v.Connection, done)
 	v.Stream = stream
 	errDone := <-done
+	cancel()
 
 	v.Encoder = nil
 	v.Stream = nil
 
-	defer encodingSession.Cleanup()
 	v.Connection.Speaking(false)
 
 	if errDone != nil && errDone != io.EOF {
@@ -132,6 +146,9 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 		v.StartTimer(s, i) // in case the first song will not be added because of an error
 		for song := range v.Queue {
 			v.StopTimer()
+			if v.Connection == nil {
+				return
+			}
 
 			v.IsPlaying = true
 
@@ -150,7 +167,7 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 				time.Sleep(5 * time.Second)
 			}
 
-			v.PlaySingleSong(song.videoInfo)
+			v.PlaySingleSong(song.url)
 
 			if len(v.QueueList) > 0 { // in case a clear has happened
 				v.QueueList = v.QueueList[1:] // dequeue

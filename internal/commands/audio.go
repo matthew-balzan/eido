@@ -89,6 +89,10 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 	}
 
 	input := optionMap["input"].StringValue()
+	var skip uint64 = 0
+	if optionMap["skip-playlist"] != nil {
+		skip = optionMap["skip-playlist"].UintValue()
+	}
 
 	channelId := getAudioChannel(s, i)
 
@@ -98,7 +102,7 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 
 	switch {
 	case strings.Contains(input, "/playlist?"):
-		playCommandPlaylist(s, i, instance, channelId, input)
+		playCommandPlaylist(s, i, instance, channelId, input, skip)
 	case (strings.Contains(input, "youtube.com") || strings.Contains(input, "youtu.be")):
 		playCommandVideo(s, i, instance, channelId, input)
 	case strings.Contains(input, "spotify.com"):
@@ -154,7 +158,7 @@ func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, inst
 	}
 }
 
-func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlPlaylist string) {
+func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlPlaylist string, skip uint64) {
 	client := youtubeV2.Client{}
 
 	playlistInfo, err := client.GetPlaylist(urlPlaylist)
@@ -184,6 +188,11 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 	globalError := false
 
 	for _, entry := range playlistInfo.Videos {
+		if skip > 0 {
+			skip--
+			continue
+		}
+
 		video, err := client.VideoFromPlaylistEntry(entry)
 
 		if err != nil {
