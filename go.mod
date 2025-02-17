@@ -6,7 +6,6 @@ toolchain go1.22.9
 
 require (
 	github.com/bwmarrin/discordgo v0.28.1
-	github.com/kkdai/youtube/v2 v2.10.2
 	github.com/spf13/viper v1.19.0
 	golang.org/x/net v0.31.0
 )

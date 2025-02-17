@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/bwmarrin/discordgo"
-	"github.com/kkdai/youtube/v2"
 	"github.com/matthew-balzan/dca"
 	"github.com/matthew-balzan/eido/internal/models"
 )
@@ -30,8 +29,17 @@ type VoiceInstance struct {
 	QueueList  []Song //Copy of the channel, needed to show queue to the user
 	Timer      *time.Timer
 }
+
+type VideoInfo struct {
+	ID        string
+	Title     string
+	Author    string
+	Duration  string
+	Thumbnail string
+}
+
 type Song struct {
-	videoInfo *youtube.Video
+	videoInfo VideoInfo
 	url       string
 }
 
@@ -157,8 +165,8 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 				i,
 				song.videoInfo.Title,
 				song.url,
-				song.videoInfo.Thumbnails[1].URL,
-				"Duration: "+song.videoInfo.Duration.String(),
+				song.videoInfo.Thumbnail,
+				song.videoInfo.Duration,
 				models.ColorDefault,
 				"Now playing:",
 			)

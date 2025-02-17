@@ -4,11 +4,11 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
-	youtubeV2 "github.com/kkdai/youtube/v2"
 	"github.com/matthew-balzan/eido/internal/models"
 	"golang.org/x/net/html"
 	"google.golang.org/api/option"
@@ -102,25 +102,45 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 
 	switch {
 	case strings.Contains(input, "/playlist?"):
-		playCommandPlaylist(s, i, instance, channelId, input, skip)
+		playCommandPlaylist(s, i, instance, channelId, input, skip, configs.YoutubeKey)
 	case (strings.Contains(input, "youtube.com") || strings.Contains(input, "youtu.be")):
-		playCommandVideo(s, i, instance, channelId, input)
+		playCommandVideo(s, i, instance, channelId, input, configs.YoutubeKey)
 	case strings.Contains(input, "spotify.com"):
 		title := getVideoTitleFromSpotify(input)
 		url := searchVideoUrl(title, configs.YoutubeKey)
-		playCommandVideo(s, i, instance, channelId, url)
+		playCommandVideo(s, i, instance, channelId, url, configs.YoutubeKey)
 	default:
 		url := searchVideoUrl(input, configs.YoutubeKey)
-		playCommandVideo(s, i, instance, channelId, url)
+		playCommandVideo(s, i, instance, channelId, url, configs.YoutubeKey)
 	}
 }
 
-func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlVideo string) {
-	client := youtubeV2.Client{}
+func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlVideo string, key string) {
 
-	videoInfo, err := client.GetVideo(urlVideo)
+	reg := `^.*(?:(?:youtu\.be\/|v\/|vi\/|u\/\w\/|embed\/|shorts\/)|(?:(?:watch)?\?v(?:i)?=|\&v(?:i)?=))([^#\&\?]*).*`
+	res := regexp.MustCompile(reg)
+	id := res.FindStringSubmatch(urlVideo)[1]
 
-	if err != nil || videoInfo == nil {
+	service, err := youtube.NewService(context.Background(), option.WithAPIKey(key))
+	if err != nil {
+		log.Fatalf("Error creating new YouTube client: %v", err)
+	}
+
+	call := service.Videos.List([]string{"contentDetails", "snippet"}).Id(id)
+	resYt, _ := call.Do()
+
+	var videoInfo VideoInfo
+	if resYt.Items[0] != nil {
+		videoInfo = VideoInfo{
+			ID:        resYt.Items[0].Id,
+			Title:     resYt.Items[0].Snippet.Title,
+			Author:    resYt.Items[0].Snippet.ChannelTitle,
+			Duration:  strings.ReplaceAll(resYt.Items[0].ContentDetails.Duration, "PT", ""),
+			Thumbnail: resYt.Items[0].Snippet.Thumbnails.Default.Url,
+		}
+	}
+
+	if err != nil || videoInfo.ID == "" {
 		SendSimpleMessageResponse(
 			s,
 			i,
@@ -158,20 +178,50 @@ func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, inst
 	}
 }
 
-func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlPlaylist string, skip uint64) {
-	client := youtubeV2.Client{}
+func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance, channelId string, urlPlaylist string, skip uint64, key string) {
 
-	playlistInfo, err := client.GetPlaylist(urlPlaylist)
+	list := []VideoInfo{}
+	page := ""
 
-	if err != nil || playlistInfo == nil {
-		log.Println(err)
-		SendSimpleMessageResponse(
-			s,
-			i,
-			"Couldn't fetch playlist. Check if it's public.",
-			models.ColorError,
-		)
-		return
+	reg := `^.*?(?:v|list)=(.*?)(?:&|$)`
+	res := regexp.MustCompile(reg)
+	id := res.FindStringSubmatch(urlPlaylist)[1]
+
+	service, err := youtube.NewService(context.Background(), option.WithAPIKey(key))
+	if err != nil {
+		log.Fatalf("Error creating new YouTube client: %v", err)
+	}
+
+	for cont := true; cont; {
+		call := service.PlaylistItems.List([]string{"contentDetails", "snippet"}).PlaylistId(id).MaxResults(50).PageToken(page)
+		resYt, _ := call.Do()
+
+		if err != nil || resYt.Items[0] == nil {
+			log.Println(err)
+			SendSimpleMessageResponse(
+				s,
+				i,
+				"Couldn't fetch playlist items. Check if it's public.",
+				models.ColorError,
+			)
+			return
+		}
+
+		if resYt.NextPageToken == "" {
+			cont = false
+		} else {
+			page = resYt.NextPageToken
+		}
+
+		for _, v := range resYt.Items {
+			list = append(list, VideoInfo{
+				ID:        v.ContentDetails.VideoId,
+				Title:     v.Snippet.Title,
+				Author:    v.Snippet.ChannelTitle,
+				Duration:  "",
+				Thumbnail: v.Snippet.Thumbnails.Default.Url,
+			})
+		}
 	}
 
 	if instance.Voice.Connection == nil { // if there's already a voice connection
@@ -181,27 +231,25 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 	SendSimpleMessageResponse(
 		s,
 		i,
-		"Adding playlist to queue. It may take some time ...",
+		"Adding playlist. It may take some time ...\n\n"+urlPlaylist,
 		models.ColorDefault,
 	)
 
 	globalError := false
 
-	for _, entry := range playlistInfo.Videos {
+	for _, entry := range list {
 		if skip > 0 {
 			skip--
 			continue
 		}
-
-		video, err := client.VideoFromPlaylistEntry(entry)
 
 		if err != nil {
 			globalError = true
 		}
 
 		song := Song{
-			url:       "https://www.youtube.com/watch?v=" + video.ID,
-			videoInfo: video,
+			url:       "https://www.youtube.com/watch?v=" + entry.ID,
+			videoInfo: entry,
 		}
 
 		result := instance.Voice.addToQueue(song)
