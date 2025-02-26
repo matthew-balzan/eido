@@ -71,6 +71,7 @@ func (v *VoiceInstance) playSingleSong(url string) {
 	options.Application = "lowdelay"
 	options.AudioFilter = "volume=0.1"
 	options.BufferedFrames = 1024 * 1024 * 4
+	options.Threads = 2
 
 	ctx, cancel := context.WithCancel(v.ctx)
 	defer cancel()
