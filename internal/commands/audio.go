@@ -2,14 +2,18 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/matthew-balzan/eido/internal/models"
+	"github.com/matthew-balzan/eido/internal/utils"
+
 	"golang.org/x/net/html"
 	"google.golang.org/api/option"
 	"google.golang.org/api/youtube/v3"
@@ -103,7 +107,7 @@ func PlayCommand(s *discordgo.Session, i *discordgo.InteractionCreate, instance 
 	switch {
 	case strings.Contains(input, "/playlist?"):
 		playCommandPlaylist(s, i, instance, channelId, input, skip, configs.YoutubeKey)
-	case (strings.Contains(input, "youtube.com") || strings.Contains(input, "youtu.be")):
+	case strings.Contains(input, "youtube.com") || strings.Contains(input, "youtu.be"):
 		playCommandVideo(s, i, instance, channelId, input, configs.YoutubeKey)
 	case strings.Contains(input, "spotify.com"):
 		title := getVideoTitleFromSpotify(input)
@@ -151,7 +155,7 @@ func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, inst
 	}
 
 	if instance.Voice.Connection == nil { // if there's already a voice connection
-		instance.Voice.startAudioSession(s, i, channelId) //start a new session
+		instance.Voice.StartAudioSession(s, i, channelId) //start a new session
 	}
 
 	song := Song{
@@ -159,21 +163,28 @@ func playCommandVideo(s *discordgo.Session, i *discordgo.InteractionCreate, inst
 		videoInfo: videoInfo,
 	}
 
-	result := instance.Voice.addToQueue(song)
-
-	if result {
+	if err := instance.Voice.Queue.Push(song); err != nil {
+		if errors.Is(err, utils.QueueFullErr) {
+			SendSimpleMessageResponse(
+				s,
+				i,
+				"Queue is full ("+strconv.Itoa(models.MaxQueueLength)+")",
+				models.ColorError,
+			)
+		} else {
+			SendSimpleMessageResponse(
+				s,
+				i,
+				"Couldn't add song to queue.",
+				models.ColorError,
+			)
+		}
+	} else {
 		SendSimpleMessageResponse(
 			s,
 			i,
 			"*"+song.videoInfo.Title+"* added to queue",
 			models.ColorDefault,
-		)
-	} else {
-		SendSimpleMessageResponse(
-			s,
-			i,
-			"Couldnt add song to queue. Check if you went over the queue limit ("+strconv.Itoa(models.MaxQueueLength)+")",
-			models.ColorError,
 		)
 	}
 }
@@ -214,6 +225,11 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 		}
 
 		for _, v := range resYt.Items {
+			// Private/Hidden videos.
+			if v.Snippet.Thumbnails.Default == nil {
+				continue
+			}
+
 			list = append(list, VideoInfo{
 				ID:        v.ContentDetails.VideoId,
 				Title:     v.Snippet.Title,
@@ -225,7 +241,7 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 	}
 
 	if instance.Voice.Connection == nil { // if there's already a voice connection
-		instance.Voice.startAudioSession(s, i, channelId) //start a new session
+		instance.Voice.StartAudioSession(s, i, channelId) //start a new session
 	}
 
 	SendSimpleMessageResponse(
@@ -252,9 +268,7 @@ func playCommandPlaylist(s *discordgo.Session, i *discordgo.InteractionCreate, i
 			videoInfo: entry,
 		}
 
-		result := instance.Voice.addToQueue(song)
-
-		if !result {
+		if err := instance.Voice.Queue.Push(song); err != nil {
 			globalError = true
 		}
 	}
@@ -415,20 +429,43 @@ func GetQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *Se
 		return
 	}
 
-	queue := instance.Voice.getQueueList()
+	queue := instance.Voice.Queue.PeekAll()
 	var message = ""
 
 	if len(queue) == 0 {
 		message = "Queue is empty"
 	} else {
 		for i, song := range queue {
-			row := strconv.Itoa(i) + ". " + song.videoInfo.Title
-			if i == 0 {
-				row += " -> Now playing"
-			}
-			message += row + " \n"
+			message += strconv.Itoa(i) + ". " + song.videoInfo.Title + " \n"
 		}
 	}
 
 	SendSimpleMessageResponse(s, i, message, models.ColorDefault)
+}
+
+func ShuffleQueue(s *discordgo.Session, i *discordgo.InteractionCreate, instance *ServerInstance) {
+	channelId := getAudioChannel(s, i)
+
+	if !isBotInAChannel(s, i, instance, true) {
+		return
+	}
+
+	if !checkAudioBasicPrerequisites(s, i, instance, channelId, true) {
+		return
+	}
+
+	if instance.Voice.Queue.Len() < 2 {
+		SendSimpleMessageResponse(s, i, "Make your preparations. We need more.", models.ColorError)
+		return
+	}
+
+	instance.Voice.Queue.Shuffle()
+
+	SendSimpleMessageResponse(s, i, "Everyday I'm shuffling!", models.ColorDefault)
+}
+
+func Reboot(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	SendSimpleMessageResponse(s, i, "I'll be back.", models.ColorDefault)
+
+	os.Exit(42)
 }

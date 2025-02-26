@@ -6,14 +6,13 @@ import (
 	"github.com/bwmarrin/discordgo"
 
 	"github.com/matthew-balzan/eido/internal/bot"
-	"github.com/matthew-balzan/eido/internal/utils"
 	"github.com/matthew-balzan/eido/internal/vars"
 )
 
 func main() {
 
 	// Load configs
-	_, err := utils.LoadConfig()
+	_, err := vars.LoadConfig()
 
 	if err != nil {
 		log.Fatal("Cannot load config:", err)

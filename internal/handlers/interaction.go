@@ -52,6 +52,10 @@ func InteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
 			commands.ClearQueue(s, i, instance)
 		case "queue":
 			commands.GetQueue(s, i, instance)
+		case "shuffle":
+			commands.ShuffleQueue(s, i, instance)
+		case "reboot":
+			commands.Reboot(s, i)
 		}
 
 	}

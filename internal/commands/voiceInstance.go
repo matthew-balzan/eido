@@ -12,6 +12,7 @@ import (
 	"github.com/bwmarrin/discordgo"
 	"github.com/matthew-balzan/dca"
 	"github.com/matthew-balzan/eido/internal/models"
+	"github.com/matthew-balzan/eido/internal/utils"
 )
 
 type ServerInstance struct {
@@ -20,13 +21,15 @@ type ServerInstance struct {
 }
 
 type VoiceInstance struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+
 	ChannelId  string
 	Connection *discordgo.VoiceConnection
 	Encoder    *dca.EncodeSession
 	Stream     *dca.StreamingSession
 	IsPlaying  bool
-	Queue      chan Song
-	QueueList  []Song //Copy of the channel, needed to show queue to the user
+	Queue      *utils.RingQueue[Song]
 	Timer      *time.Timer
 }
 
@@ -57,12 +60,11 @@ func CreateVoiceInstance() (i *VoiceInstance) {
 	i.Encoder = nil
 	i.IsPlaying = false
 	i.Timer = nil
-	i.Queue = nil
-	i.QueueList = make([]Song, 0, models.MaxQueueLength)
+	i.Queue = utils.NewRingQueue[Song](models.MaxQueueLength)
 	return i
 }
 
-func (v *VoiceInstance) PlaySingleSong(url string) {
+func (v *VoiceInstance) playSingleSong(url string) {
 	options := dca.StdEncodeOptions
 	options.RawOutput = true
 	options.Bitrate = 96
@@ -70,10 +72,10 @@ func (v *VoiceInstance) PlaySingleSong(url string) {
 	options.AudioFilter = "volume=0.1"
 	options.BufferedFrames = 1024 * 1024 * 4
 
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(v.ctx)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "yt-dlp", "-f", "best*[vcodec=none][acodec=opus]", "-o", "-", "--download-sections", "*from-url", url)
+	cmd := exec.CommandContext(ctx, "yt-dlp", "-f", "best*[vcodec=none][acodec=opus]", "-o", "-", "--download-sections", "*from-url", "--no-playlist", url)
 	defer cmd.Wait()
 
 	stdout, err := cmd.StdoutPipe()
@@ -117,26 +119,35 @@ func (v *VoiceInstance) PlaySingleSong(url string) {
 	}
 }
 
-func (v *VoiceInstance) StopTimer() {
+func (v *VoiceInstance) stopTimer() {
 	if v.Timer != nil {
 		v.Timer.Stop()
 	}
 }
 
-func (v *VoiceInstance) StartTimer(s *discordgo.Session, i *discordgo.InteractionCreate) {
+func (v *VoiceInstance) startTimer(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	if v.Timer != nil {
+		v.Timer.Stop()
+		v.Timer = nil
+	}
 	v.Timer = time.NewTimer(time.Duration(models.TimeoutSecondsDisconnect) * time.Second)
 
 	go func() {
-		<-v.Timer.C // signal to disconnect
-
-		log.Println("Bot disconnected for inactivity")
-		v.disconnect()
-		SendSimpleMessage(s, i, "Disconnected for inactivity", models.ColorDefault)
+		select {
+		case <-v.Timer.C:
+			log.Println("Bot disconnected for inactivity")
+			v.disconnect()
+			SendSimpleMessage(s, i, "Disconnected for inactivity", models.ColorDefault)
+		case <-v.ctx.Done():
+			// Context is done, time to go.
+			return
+		}
 	}()
 }
 
-func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.InteractionCreate, voiceChannel string) {
-	v.Queue = make(chan Song, models.MaxQueueLength)
+func (v *VoiceInstance) StartAudioSession(s *discordgo.Session, i *discordgo.InteractionCreate, voiceChannel string) {
+	v.ctx, v.cancel = context.WithCancel(context.Background())
+	v.Queue.Clear()
 
 	var err error = nil
 	var voiceConnection *discordgo.VoiceConnection = nil
@@ -151,9 +162,15 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 	v.Connection = voiceConnection
 
 	go func() {
-		v.StartTimer(s, i) // in case the first song will not be added because of an error
-		for song := range v.Queue {
-			v.StopTimer()
+		v.startTimer(s, i) // in case the first song will not be added because of an error
+		for {
+			song, err := v.Queue.Accept(v.ctx)
+			if err != nil {
+				return
+			}
+
+			v.stopTimer()
+
 			if v.Connection == nil {
 				return
 			}
@@ -175,31 +192,13 @@ func (v *VoiceInstance) startAudioSession(s *discordgo.Session, i *discordgo.Int
 				time.Sleep(5 * time.Second)
 			}
 
-			v.PlaySingleSong(song.url)
+			v.playSingleSong(song.url)
 
-			if len(v.QueueList) > 0 { // in case a clear has happened
-				v.QueueList = v.QueueList[1:] // dequeue
-			}
 			v.IsPlaying = false
-			v.StartTimer(s, i)
+			v.startTimer(s, i)
 		}
 
 	}()
-}
-
-func (v *VoiceInstance) addToQueue(song Song) (res bool) {
-	if v.Queue == nil {
-		log.Println("ERR: internal/models/instance.go: Queue not initialized (somehow)")
-		return false
-	}
-
-	if len(v.Queue) >= models.MaxQueueLength {
-		return false
-	}
-
-	v.Queue <- song
-	v.QueueList = append(v.QueueList, song)
-	return true
 }
 
 func (v *VoiceInstance) skip() {
@@ -216,26 +215,30 @@ func (v *VoiceInstance) setPause(pause bool) {
 }
 
 func (v *VoiceInstance) disconnect() {
+	if v.cancel != nil {
+		v.cancel()
+	}
+	v.ctx = nil
+	v.cancel = nil
+
 	if v.Connection != nil {
 		v.Connection.Disconnect()
 	}
 	v.Connection = nil
+
 	v.ChannelId = ""
 	v.Stream = nil
+	if v.Timer != nil {
+		v.Timer.Stop()
+	}
 	v.Timer = nil
+
 	if v.Queue != nil {
-		close(v.Queue)
+		v.Queue.Clear()
 	}
 }
 
 func (v *VoiceInstance) clearQueue() {
-	for len(v.Queue) > 0 {
-		<-v.Queue
-	}
-	v.QueueList = make([]Song, 0, models.MaxQueueLength)
+	v.Queue.Clear()
 	v.skip()
-}
-
-func (v *VoiceInstance) getQueueList() (queue []Song) {
-	return v.QueueList
 }

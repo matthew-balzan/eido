@@ -94,6 +94,14 @@ func (b *Bot) RegisterCommands(session *discordgo.Session) {
 			Name:        "queue",
 			Description: "Lists the songs in the queue",
 		},
+		{
+			Name:        "shuffle",
+			Description: "Shuffle the songs in the queue",
+		},
+		{
+			Name:        "reboot",
+			Description: "Have you tried turning it off and on again?",
+		},
 	}
 
 	app, err := session.Application("@me")

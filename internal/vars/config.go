@@ -1,4 +1,4 @@
-package utils
+package vars
 
 import (
 	"log"
@@ -7,7 +7,10 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/matthew-balzan/eido/internal/models"
-	"github.com/matthew-balzan/eido/internal/vars"
+)
+
+var (
+	Config *models.Config
 )
 
 func LoadConfig() (config models.Config, err error) {
@@ -32,7 +35,7 @@ func LoadConfig() (config models.Config, err error) {
 	err = viper.Unmarshal(&config)
 
 	// set config as global variable
-	vars.Config = &config
+	Config = &config
 
 	log.Println("Configs loaded!")
 	return
